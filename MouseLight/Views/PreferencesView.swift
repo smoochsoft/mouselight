@@ -353,6 +353,7 @@ struct KeystrokesTab: View {
 struct MiscellaneousTab: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var hasAccessibility = PermissionsManager.shared.hasAccessibilityPermission
+    @State private var permissionTimer: Timer?
 
     var body: some View {
         Form {
@@ -404,6 +405,14 @@ struct MiscellaneousTab: View {
         .formStyle(.grouped)
         .onAppear {
             hasAccessibility = PermissionsManager.shared.hasAccessibilityPermission
+            // Poll for permission changes
+            permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                hasAccessibility = PermissionsManager.shared.hasAccessibilityPermission
+            }
+        }
+        .onDisappear {
+            permissionTimer?.invalidate()
+            permissionTimer = nil
         }
     }
 

@@ -22,6 +22,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Skip onboarding if permission is already granted
+        if PermissionsManager.shared.hasAccessibilityPermission {
+            settings.hasCompletedOnboarding = true
+        }
+
         // Check if onboarding is needed
         if !settings.hasCompletedOnboarding {
             showPermissionsWindow()
