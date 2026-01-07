@@ -1,0 +1,24 @@
+# Xcode
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# User data
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Distribution
+*.dmg
+*.pkg
+
+# Temporary files
+*.swp
+*~
