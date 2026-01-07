@@ -301,7 +301,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self)
         eventMonitor?.stop()
+        EventMonitor.cleanupEventHandler()
         stopMousePolling()
     }
 }

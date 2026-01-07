@@ -8,8 +8,8 @@ enum ClickType {
 }
 
 // Global handler for Carbon hotkey events
-private var hotkeyHandlerRef: AutoreleasingUnsafeMutablePointer<EventHandlerRef?>?
 private weak var sharedEventMonitor: EventMonitor?
+private var sharedEventHandlerRef: EventHandlerRef?
 
 class EventMonitor {
     private var eventTap: CFMachPort?
@@ -192,27 +192,32 @@ class EventMonitor {
     private func registerCarbonHotkey() {
         sharedEventMonitor = self
 
-        // Install event handler for hotkey events
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        // Install event handler for hotkey events (only once)
+        if sharedEventHandlerRef == nil {
+            var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
 
-        let handler: EventHandlerUPP = { _, event, _ -> OSStatus in
-            guard let monitor = sharedEventMonitor else { return noErr }
-            DispatchQueue.main.async {
-                monitor.onHotkey()
+            let handler: EventHandlerUPP = { _, event, _ -> OSStatus in
+                guard let monitor = sharedEventMonitor else { return noErr }
+                DispatchQueue.main.async {
+                    monitor.onHotkey()
+                }
+                return noErr
             }
-            return noErr
-        }
 
-        InstallEventHandler(GetApplicationEventTarget(), handler, 1, &eventType, nil, nil)
+            var handlerRef: EventHandlerRef?
+            InstallEventHandler(GetApplicationEventTarget(), handler, 1, &eventType, nil, &handlerRef)
+            sharedEventHandlerRef = handlerRef
+        }
 
         // Register the hotkey
         let keyCode = UInt32(settings.spotlightHotkeyKeyCode)
         let modifiers = carbonModifiers(from: settings.spotlightHotkeyModifiers)
 
-        hotkeyID = EventHotKeyID(signature: OSType(0x4D4C4854), id: 1) // 'MLHT' signature
+        let hotkeyIDValue = EventHotKeyID(signature: OSType(0x4D4C4854), id: 1) // 'MLHT' signature
+        hotkeyID = hotkeyIDValue
         var hotKeyRef: EventHotKeyRef?
 
-        let status = RegisterEventHotKey(keyCode, modifiers, hotkeyID!, GetApplicationEventTarget(), 0, &hotKeyRef)
+        let status = RegisterEventHotKey(keyCode, modifiers, hotkeyIDValue, GetApplicationEventTarget(), 0, &hotKeyRef)
 
         if status == noErr {
             hotkeyRef = hotKeyRef
@@ -224,7 +229,16 @@ class EventMonitor {
             UnregisterEventHotKey(ref)
             hotkeyRef = nil
         }
+        hotkeyID = nil
         sharedEventMonitor = nil
+    }
+
+    /// Clean up the shared event handler (call when app terminates)
+    static func cleanupEventHandler() {
+        if let handlerRef = sharedEventHandlerRef {
+            RemoveEventHandler(handlerRef)
+            sharedEventHandlerRef = nil
+        }
     }
 
     private func carbonModifiers(from nsModifiers: Int) -> UInt32 {
