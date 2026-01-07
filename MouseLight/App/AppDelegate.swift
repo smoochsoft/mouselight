@@ -132,29 +132,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Permissions & Event Monitoring
 
     private func checkPermissionsAndStart() {
-        let hasPermission = PermissionsManager.shared.checkPermissions()
-
         // Always try to start event monitoring - it will fail gracefully if no permission
+        // The onboarding flow already handles permission requests, so we don't show
+        // another alert here. AXIsProcessTrusted() can briefly return false on launch
+        // even when permission is granted.
         startEventMonitoring()
-
-        if !hasPermission {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.showPermissionsAlert()
-            }
-        }
-    }
-
-    private func showPermissionsAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Permission Required"
-        alert.informativeText = "MouseLight needs Accessibility permission to monitor mouse clicks and keyboard input. Please grant access in System Preferences."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open System Preferences")
-        alert.addButton(withTitle: "Later")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            PermissionsManager.shared.openAccessibilityPreferences()
-        }
     }
 
     private func startEventMonitoring() {
