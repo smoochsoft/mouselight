@@ -52,6 +52,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: .hotkeyDidChange,
             object: nil
         )
+
+        // Observe settings changes to update menu checkmarks
+        UserDefaults.standard.addObserver(self, forKeyPath: "spotlightEnabled", options: .new, context: nil)
+        UserDefaults.standard.addObserver(self, forKeyPath: "clicksEnabled", options: .new, context: nil)
+    }
+
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == "spotlightEnabled" || keyPath == "clicksEnabled" {
+            DispatchQueue.main.async { [weak self] in
+                self?.setupMenu()
+            }
+        }
     }
 
     @objc private func hotkeyDidChange() {
@@ -351,6 +363,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
+        UserDefaults.standard.removeObserver(self, forKeyPath: "spotlightEnabled")
+        UserDefaults.standard.removeObserver(self, forKeyPath: "clicksEnabled")
         eventMonitor?.stop()
         EventMonitor.cleanupEventHandler()
         stopMousePolling()

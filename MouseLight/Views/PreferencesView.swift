@@ -93,6 +93,8 @@ struct MouseLightTab: View {
     var body: some View {
         Form {
             Section {
+                Toggle("Show spotlight effect", isOn: $settings.spotlightEnabled)
+
                 HotkeyRecorderView(
                     title: "Toggle Hotkey",
                     modifiers: $settings.spotlightHotkeyModifiers,
