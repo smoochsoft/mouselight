@@ -3,6 +3,7 @@ import Carbon
 
 extension Notification.Name {
     static let hotkeyDidChange = Notification.Name("hotkeyDidChange")
+    static let keystrokeDisplayDidChange = Notification.Name("keystrokeDisplayDidChange")
 }
 
 // Observable class to manage hotkey recording state

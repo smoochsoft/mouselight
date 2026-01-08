@@ -4,14 +4,12 @@ import ServiceManagement
 enum PreferencesTab: String, CaseIterable {
     case spotlight = "Spotlight"
     case clicks = "Clicks"
-    case keystrokes = "Keystrokes"
     case general = "General"
 
     var icon: String {
         switch self {
         case .spotlight: return "light.max"
         case .clicks: return "cursorarrow.click"
-        case .keystrokes: return "keyboard"
         case .general: return "gearshape"
         }
     }
@@ -48,8 +46,6 @@ struct PreferencesView: View {
                     MouseLightTab()
                 case .clicks:
                     MouseClicksTab()
-                case .keystrokes:
-                    KeystrokesTab()
                 case .general:
                     MiscellaneousTab()
                 }
@@ -118,7 +114,22 @@ struct MouseLightTab: View {
 
             Section {
                 HStack {
-                    Text("Circle Radius")
+                    Text("Shape")
+                    Spacer()
+                    Picker("", selection: shapeBinding) {
+                        ForEach(SpotlightShape.allCases, id: \.self) { shape in
+                            HStack {
+                                Image(systemName: shape.iconName)
+                                Text(shape.displayName)
+                            }.tag(shape)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
+                }
+
+                HStack {
+                    Text("Size")
                     Slider(value: $settings.spotlightRadius, in: 50...300, step: 10)
                     Text("\(Int(settings.spotlightRadius))")
                         .frame(width: 40)
@@ -158,6 +169,13 @@ struct MouseLightTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var shapeBinding: Binding<SpotlightShape> {
+        Binding(
+            get: { settings.spotlightShape },
+            set: { settings.spotlightShape = $0 }
+        )
     }
 
     private var decimalFormatter: NumberFormatter {
@@ -200,25 +218,10 @@ struct MouseClicksTab: View {
                 }
 
                 HStack {
-                    Text("Colors")
+                    Text("Color")
                     Spacer()
-                    HStack(spacing: 16) {
-                        VStack(spacing: 2) {
-                            ColorPicker("", selection: leftClickBinding)
-                                .labelsHidden()
-                            Text("Left").font(.caption2).foregroundColor(.secondary)
-                        }
-                        VStack(spacing: 2) {
-                            ColorPicker("", selection: rightClickBinding)
-                                .labelsHidden()
-                            Text("Right").font(.caption2).foregroundColor(.secondary)
-                        }
-                        VStack(spacing: 2) {
-                            ColorPicker("", selection: otherClickBinding)
-                                .labelsHidden()
-                            Text("Middle").font(.caption2).foregroundColor(.secondary)
-                        }
-                    }
+                    ColorPicker("", selection: clickColorBinding)
+                        .labelsHidden()
                 }
 
                 HStack {
@@ -229,17 +232,6 @@ struct MouseClicksTab: View {
                     Text("sec")
                         .foregroundColor(.secondary)
                 }
-
-                HStack {
-                    Toggle("Click Sound", isOn: $settings.clickSoundEnabled)
-                    Spacer()
-                    Slider(value: $settings.clickSoundVolume, in: 0...100, step: 10)
-                        .frame(width: 80)
-                        .disabled(!settings.clickSoundEnabled)
-                    Text("\(Int(settings.clickSoundVolume))%")
-                        .frame(width: 40)
-                        .foregroundColor(.secondary)
-                }
             } header: {
                 Text("Appearance")
             }
@@ -247,24 +239,10 @@ struct MouseClicksTab: View {
         .formStyle(.grouped)
     }
 
-    private var leftClickBinding: Binding<Color> {
+    private var clickColorBinding: Binding<Color> {
         Binding(
-            get: { Color(settings.leftClickColor) },
-            set: { settings.leftClickColorHex = NSColor($0).hexString }
-        )
-    }
-
-    private var rightClickBinding: Binding<Color> {
-        Binding(
-            get: { Color(settings.rightClickColor) },
-            set: { settings.rightClickColorHex = NSColor($0).hexString }
-        )
-    }
-
-    private var otherClickBinding: Binding<Color> {
-        Binding(
-            get: { Color(settings.otherClickColor) },
-            set: { settings.otherClickColorHex = NSColor($0).hexString }
+            get: { Color(settings.clickColor) },
+            set: { settings.clickColorHex = NSColor($0).hexString }
         )
     }
 
@@ -274,77 +252,6 @@ struct MouseClicksTab: View {
         f.minimumFractionDigits = 1
         f.maximumFractionDigits = 1
         return f
-    }
-}
-
-// MARK: - Keystrokes Tab
-
-struct KeystrokesTab: View {
-    @ObservedObject private var settings = AppSettings.shared
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Show keystrokes", isOn: $settings.keystrokesEnabled)
-
-                Picker("Mode", selection: $settings.keystrokesStandalone) {
-                    Text("With Spotlight").tag(false)
-                    Text("Always On").tag(true)
-                }
-                .pickerStyle(.segmented)
-            } header: {
-                Text("Activation")
-            }
-
-            Section {
-                HStack {
-                    Text("Display Duration")
-                    Slider(value: $settings.keystrokeDisplayDuration, in: 0.5...5.0, step: 0.5)
-                    Text("\(settings.keystrokeDisplayDuration, specifier: "%.1f")")
-                        .frame(width: 35)
-                        .foregroundColor(.secondary)
-                    Text("sec")
-                        .foregroundColor(.secondary)
-                }
-
-                HStack {
-                    Text("Font Size")
-                    Slider(value: $settings.keystrokeFontSize, in: 24...150, step: 6)
-                    Text("\(Int(settings.keystrokeFontSize))")
-                        .frame(width: 40)
-                        .foregroundColor(.secondary)
-                    Text("pt")
-                        .foregroundColor(.secondary)
-                }
-
-                Picker("Filter", selection: $settings.keystrokeFilter) {
-                    Text("All Keys").tag("all")
-                    Text("Shortcuts Only").tag("modifiers_only")
-                }
-                .pickerStyle(.segmented)
-            } header: {
-                Text("Appearance")
-            }
-
-            Section {
-                Picker("Display", selection: $settings.keystrokeDisplayIndex) {
-                    ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { index, screen in
-                        Text(screenName(for: screen, index: index)).tag(index)
-                    }
-                }
-            } header: {
-                Text("Position")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private func screenName(for screen: NSScreen, index: Int) -> String {
-        let size = "\(Int(screen.frame.width))×\(Int(screen.frame.height))"
-        if screen == NSScreen.main {
-            return "\(size) (Main)"
-        }
-        return size
     }
 }
 
@@ -395,7 +302,7 @@ struct MiscellaneousTab: View {
                 HStack {
                     Text("Version")
                     Spacer()
-                    Text("1.0.0")
+                    Text(appVersion)
                         .foregroundColor(.secondary)
                 }
             } header: {
@@ -414,6 +321,12 @@ struct MiscellaneousTab: View {
             permissionTimer?.invalidate()
             permissionTimer = nil
         }
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
     }
 
     private func updateLaunchAtLogin(_ enabled: Bool) {

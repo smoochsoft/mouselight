@@ -1,12 +1,49 @@
 import Foundation
 import SwiftUI
 
+enum SpotlightShape: String, CaseIterable {
+    case circle = "circle"
+    case square = "square"
+    case triangle = "triangle"
+    case star = "star"
+    case trapezoid = "trapezoid"
+    case cloud = "cloud"
+
+    var displayName: String {
+        switch self {
+        case .circle: return "Circle"
+        case .square: return "Square"
+        case .triangle: return "Triangle"
+        case .star: return "Star"
+        case .trapezoid: return "Trapezoid"
+        case .cloud: return "Cloud"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .circle: return "circle"
+        case .square: return "square"
+        case .triangle: return "triangle"
+        case .star: return "star"
+        case .trapezoid: return "trapezoid.and.line.horizontal"
+        case .cloud: return "cloud"
+        }
+    }
+}
+
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
     // MARK: - Spotlight Settings
     @AppStorage("spotlightEnabled") var spotlightEnabled: Bool = true
     @AppStorage("spotlightRadius") var spotlightRadius: Double = 100
+    @AppStorage("spotlightShape") var spotlightShapeRaw: String = SpotlightShape.circle.rawValue
+
+    var spotlightShape: SpotlightShape {
+        get { SpotlightShape(rawValue: spotlightShapeRaw) ?? .circle }
+        set { spotlightShapeRaw = newValue.rawValue }
+    }
     @AppStorage("spotlightDimOpacity") var spotlightDimOpacity: Double = 0.7
     @AppStorage("spotlightAnimationDuration") var spotlightAnimationDuration: Double = 0.3
     @AppStorage("spotlightBlur") var spotlightBlur: Double = 20 // percentage for edge blur
@@ -16,23 +53,10 @@ class AppSettings: ObservableObject {
 
     // MARK: - Click Indicator Settings
     @AppStorage("clicksEnabled") var clicksEnabled: Bool = true
-    @AppStorage("clicksStandalone") var clicksStandalone: Bool = true // works without spotlight
+    @AppStorage("clicksStandalone") var clicksStandalone: Bool = false // only works with spotlight by default
     @AppStorage("clickRadius") var clickRadius: Double = 30
-    @AppStorage("leftClickColor") var leftClickColorHex: String = "#FF3B30"
-    @AppStorage("rightClickColor") var rightClickColorHex: String = "#34C759"
-    @AppStorage("otherClickColor") var otherClickColorHex: String = "#007AFF"
-    @AppStorage("clickSoundEnabled") var clickSoundEnabled: Bool = false
-    @AppStorage("clickSoundVolume") var clickSoundVolume: Double = 80
+    @AppStorage("clickColor") var clickColorHex: String = "#FF3B30" // single color for all clicks
     @AppStorage("clickAnimationDuration") var clickAnimationDuration: Double = 0.3
-
-    // MARK: - Keystroke Settings
-    @AppStorage("keystrokesEnabled") var keystrokesEnabled: Bool = true
-    @AppStorage("keystrokesStandalone") var keystrokesStandalone: Bool = true // works without spotlight
-    @AppStorage("keystrokeFontSize") var keystrokeFontSize: Double = 100
-    @AppStorage("keystrokeDisplayDuration") var keystrokeDisplayDuration: Double = 1.5
-    @AppStorage("keystrokePosition") var keystrokePosition: String = "bottom"
-    @AppStorage("keystrokeDisplayIndex") var keystrokeDisplayIndex: Int = 0 // 0 = primary display
-    @AppStorage("keystrokeFilter") var keystrokeFilter: String = "all" // all, modifiers_only
 
     // MARK: - Hotkey Settings
     // NSEvent.ModifierFlags: .command = 0x100000, .shift = 0x20000, .option = 0x80000, .control = 0x40000
@@ -40,8 +64,6 @@ class AppSettings: ObservableObject {
     @AppStorage("spotlightHotkeyKeyCode") var spotlightHotkeyKeyCode: Int = 46 // M key
     @AppStorage("clicksHotkeyModifiers") var clicksHotkeyModifiers: Int = 0
     @AppStorage("clicksHotkeyKeyCode") var clicksHotkeyKeyCode: Int = 0
-    @AppStorage("keystrokesHotkeyModifiers") var keystrokesHotkeyModifiers: Int = 0
-    @AppStorage("keystrokesHotkeyKeyCode") var keystrokesHotkeyKeyCode: Int = 0
 
     // MARK: - General Settings
     @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
@@ -50,16 +72,8 @@ class AppSettings: ObservableObject {
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
 
     // MARK: - Computed Colors
-    var leftClickColor: NSColor {
-        NSColor(hex: leftClickColorHex) ?? .systemRed
-    }
-
-    var rightClickColor: NSColor {
-        NSColor(hex: rightClickColorHex) ?? .systemGreen
-    }
-
-    var otherClickColor: NSColor {
-        NSColor(hex: otherClickColorHex) ?? .systemBlue
+    var clickColor: NSColor {
+        NSColor(hex: clickColorHex) ?? .systemRed
     }
 
     // MARK: - Validated Getters (for use in drawing/animation code)
@@ -84,10 +98,6 @@ class AppSettings: ObservableObject {
         max(0.1, min(2.0, clickAnimationDuration))
     }
 
-    var validatedKeystrokeDisplayDuration: Double {
-        max(0.1, min(10.0, keystrokeDisplayDuration))
-    }
-
     var validatedAutoDeactivateSeconds: Double {
         max(1.0, min(300.0, autoDeactivateSeconds))
     }
@@ -102,11 +112,6 @@ class AppSettings: ObservableObject {
     func clicksHotkeyString() -> String {
         if clicksHotkeyKeyCode == 0 { return "Not Set" }
         return formatHotkey(modifiers: clicksHotkeyModifiers, keyCode: clicksHotkeyKeyCode)
-    }
-
-    func keystrokesHotkeyString() -> String {
-        if keystrokesHotkeyKeyCode == 0 { return "Not Set" }
-        return formatHotkey(modifiers: keystrokesHotkeyModifiers, keyCode: keystrokesHotkeyKeyCode)
     }
 
     private func formatHotkey(modifiers: Int, keyCode: Int) -> String {

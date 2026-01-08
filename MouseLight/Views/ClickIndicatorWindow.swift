@@ -1,159 +1,161 @@
 import Cocoa
+import QuartzCore
 
-class ClickIndicatorWindow: NSWindow {
-    private var clickViews: [ClickIndicatorView] = []
+/// Manages click indicator visualization using a small window that moves to click position
+/// Uses CVDisplayLink for animation timing - works regardless of app focus state
+class ClickIndicatorWindow: NSObject {
+    private var indicatorWindows: [ClickWindow] = []
+    private let settings = AppSettings.shared
 
-    init() {
-        let screenFrame = NSScreen.screens.reduce(NSRect.zero) { result, screen in
-            result.union(screen.frame)
+    func showClick(at position: NSPoint, clickType: ClickType) {
+
+        let window = ClickWindow(at: position, color: settings.clickColor, radius: CGFloat(settings.clickRadius))
+        indicatorWindows.append(window)
+        window.show(duration: settings.clickAnimationDuration) { [weak self, weak window] in
+            if let window = window {
+                self?.indicatorWindows.removeAll { $0 === window }
+            }
         }
+    }
+}
+
+// MARK: - Individual Click Window
+
+/// A small window that appears at a click position and animates using CVDisplayLink
+private class ClickWindow: NSWindow {
+    private let circleLayer = CAShapeLayer()
+    private var displayLink: CVDisplayLink?
+    private var startTime: CFAbsoluteTime = 0
+    private var animDuration: Double = 0.3
+    private var onComplete: (() -> Void)?
+    private var isAnimating = false
+
+    init(at screenPosition: NSPoint, color: NSColor, radius: CGFloat) {
+        let strokeWidth: CGFloat = 4
+        let padding = strokeWidth / 2 + 2
+        let diameter = radius * 2
+        let windowSize = diameter + padding * 2
+
+        let frame = NSRect(
+            x: screenPosition.x - windowSize / 2,
+            y: screenPosition.y - windowSize / 2,
+            width: windowSize,
+            height: windowSize
+        )
 
         super.init(
-            contentRect: screenFrame,
+            contentRect: frame,
             styleMask: .borderless,
             backing: .buffered,
             defer: false
         )
 
-        // Use a level above normal windows but below the menu bar/status items
-        self.level = NSWindow.Level(rawValue: 1)
+        // Use screen saver level - renders regardless of app focus
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         self.ignoresMouseEvents = true
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = false
 
-        let containerView = NSView(frame: screenFrame)
-        containerView.wantsLayer = true
-        self.contentView = containerView
+        // Create layer-backed content view
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: windowSize, height: windowSize))
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.clear.cgColor
+        self.contentView = contentView
+
+        // Setup circle layer
+        let circleRect = CGRect(x: padding, y: padding, width: diameter, height: diameter)
+        let circlePath = CGPath(ellipseIn: circleRect, transform: nil)
+        circleLayer.path = circlePath
+        circleLayer.fillColor = color.withAlphaComponent(0.5).cgColor
+        circleLayer.strokeColor = color.cgColor
+        circleLayer.lineWidth = strokeWidth
+        circleLayer.frame = CGRect(x: 0, y: 0, width: windowSize, height: windowSize)
+        circleLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        circleLayer.position = CGPoint(x: windowSize / 2, y: windowSize / 2)
+
+        contentView.layer?.addSublayer(circleLayer)
+    }
+
+    deinit {
+        stopDisplayLink()
+    }
+
+    func show(duration: Double, completion: @escaping () -> Void) {
+        self.animDuration = duration
+        self.onComplete = completion
+        self.startTime = CFAbsoluteTimeGetCurrent()
+        self.isAnimating = true
+
+        // Start with small scale
+        circleLayer.transform = CATransform3DMakeScale(0.5, 0.5, 1)
+        circleLayer.opacity = 1.0
 
         self.orderFrontRegardless()
+
+        // Start CVDisplayLink for hardware-synced animation
+        startDisplayLink()
     }
 
-    func showClick(at position: NSPoint, clickType: ClickType) {
-        let settings = AppSettings.shared
+    private func startDisplayLink() {
+        var link: CVDisplayLink?
+        CVDisplayLinkCreateWithActiveCGDisplays(&link)
+        guard let displayLink = link else { return }
 
-        // Determine color based on click type
-        let color: NSColor
-        switch clickType {
-        case .left:
-            color = settings.leftClickColor
-        case .right:
-            color = settings.rightClickColor
-        case .other:
-            color = settings.otherClickColor
-        }
+        self.displayLink = displayLink
 
-        let radius = CGFloat(settings.clickRadius)
+        // Set the callback - CVDisplayLink calls this at VSync rate
+        let callback: CVDisplayLinkOutputCallback = { displayLink, inNow, inOutputTime, flagsIn, flagsOut, displayLinkContext -> CVReturn in
+            guard let context = displayLinkContext else { return kCVReturnSuccess }
+            let window = Unmanaged<ClickWindow>.fromOpaque(context).takeUnretainedValue()
 
-        let clickView = ClickIndicatorView(
-            frame: NSRect(
-                x: position.x - radius,
-                y: position.y - radius,
-                width: radius * 2,
-                height: radius * 2
-            ),
-            color: color
-        )
-
-        contentView?.addSubview(clickView)
-        clickViews.append(clickView)
-
-        // Play click sound if enabled
-        if settings.clickSoundEnabled {
-            playClickSound(volume: Float(settings.clickSoundVolume / 100.0))
-        }
-
-        // Animate the click indicator
-        clickView.animate { [weak self, weak clickView] in
-            clickView?.removeFromSuperview()
-            if let view = clickView {
-                self?.clickViews.removeAll { $0 === view }
+            // Dispatch to main run loop and wake it up
+            // This is more reliable than DispatchQueue.main.async for menu bar apps
+            CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+                window.updateAnimation()
             }
+            CFRunLoopWakeUp(CFRunLoopGetMain())
+
+            return kCVReturnSuccess
+        }
+
+        let pointer = Unmanaged.passUnretained(self).toOpaque()
+        CVDisplayLinkSetOutputCallback(displayLink, callback, pointer)
+        CVDisplayLinkStart(displayLink)
+    }
+
+    private func stopDisplayLink() {
+        if let displayLink = displayLink {
+            CVDisplayLinkStop(displayLink)
+            self.displayLink = nil
         }
     }
 
-    private func playClickSound(volume: Float) {
-        // Use NSSound for system sounds with volume control
-        if let sound = NSSound(named: "Pop") {
-            sound.volume = volume
-            sound.play()
+    private func updateAnimation() {
+        guard isAnimating else { return }
+
+        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        let progress = min(elapsed / animDuration, 1.0)
+
+        // Scale: 0.5 -> 1.0 with ease out
+        let easedProgress = 1 - pow(1 - progress, 3)
+        let scale = 0.5 + 0.5 * easedProgress
+
+        // Opacity: 1.0 -> 0.0
+        let opacity = Float(1.0 - progress)
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        circleLayer.transform = CATransform3DMakeScale(scale, scale, 1)
+        circleLayer.opacity = opacity
+        CATransaction.commit()
+
+        if progress >= 1.0 {
+            isAnimating = false
+            stopDisplayLink()
+            self.orderOut(nil)
+            onComplete?()
         }
-    }
-}
-
-class ClickIndicatorView: NSView {
-    private let color: NSColor
-    private var scale: CGFloat = 0.3
-    private var opacity: CGFloat = 0.8
-
-    init(frame: NSRect, color: NSColor) {
-        self.color = color
-        super.init(frame: frame)
-        self.wantsLayer = true
-        self.layer?.backgroundColor = NSColor.clear.cgColor
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        guard NSGraphicsContext.current != nil else { return }
-
-        let center = NSPoint(x: bounds.midX, y: bounds.midY)
-        let maxRadius = min(bounds.width, bounds.height) / 2
-
-        // Draw expanding circle
-        let currentRadius = maxRadius * scale
-        let circlePath = NSBezierPath(
-            ovalIn: NSRect(
-                x: center.x - currentRadius,
-                y: center.y - currentRadius,
-                width: currentRadius * 2,
-                height: currentRadius * 2
-            )
-        )
-
-        // Fill with semi-transparent color
-        color.withAlphaComponent(opacity * 0.3).setFill()
-        circlePath.fill()
-
-        // Stroke with solid color
-        color.withAlphaComponent(opacity).setStroke()
-        circlePath.lineWidth = 3
-        circlePath.stroke()
-    }
-
-    func animate(completion: @escaping () -> Void) {
-        let duration = AppSettings.shared.clickAnimationDuration
-
-        // Use CADisplayLink-style animation with timer
-        let startTime = CACurrentMediaTime()
-        let timer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-
-            let elapsed = CACurrentMediaTime() - startTime
-            let progress = min(elapsed / duration, 1.0)
-
-            // Ease out curve
-            let easedProgress = 1 - pow(1 - progress, 3)
-
-            self.scale = 0.3 + (easedProgress * 0.7)
-            self.opacity = 0.8 * (1 - progress)
-            self.needsDisplay = true
-
-            if progress >= 1.0 {
-                timer.invalidate()
-                completion()
-            }
-        }
-
-        RunLoop.main.add(timer, forMode: .common)
     }
 }

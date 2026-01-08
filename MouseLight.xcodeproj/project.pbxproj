@@ -15,11 +15,12 @@
 		A1000001AAAA00010000006 /* SpotlightOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA00010000006 /* SpotlightOverlayWindow.swift */; };
 		A1000001AAAA00010000007 /* SpotlightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA00010000007 /* SpotlightView.swift */; };
 		A1000001AAAA00010000008 /* ClickIndicatorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA00010000008 /* ClickIndicatorWindow.swift */; };
-		A1000001AAAA00010000009 /* KeystrokeOverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA00010000009 /* KeystrokeOverlayWindow.swift */; };
 		A1000001AAAA0001000000A /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA0001000000A /* PreferencesView.swift */; };
 		A1000001AAAA0001000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA0001000000B /* Assets.xcassets */; };
 		A1000001AAAA0001000000E /* HotkeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA0001000000E /* HotkeyRecorderView.swift */; };
 		A1000001AAAA0001000000F /* PermissionsWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA0001000000F /* PermissionsWindowView.swift */; };
+		A1000001AAAA00010000010 /* CloudShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA00010000010 /* CloudShape.swift */; };
+		A1000001AAAA00010000011 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002AAAA00010000011 /* AboutView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,7 +32,6 @@
 		A1000002AAAA00010000006 /* SpotlightOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightOverlayWindow.swift; sourceTree = "<group>"; };
 		A1000002AAAA00010000007 /* SpotlightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightView.swift; sourceTree = "<group>"; };
 		A1000002AAAA00010000008 /* ClickIndicatorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickIndicatorWindow.swift; sourceTree = "<group>"; };
-		A1000002AAAA00010000009 /* KeystrokeOverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeystrokeOverlayWindow.swift; sourceTree = "<group>"; };
 		A1000002AAAA0001000000A /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		A1000002AAAA0001000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000002AAAA0001000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -39,6 +39,8 @@
 		A1000002AAAA0001000000D /* MouseLight.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MouseLight.entitlements; sourceTree = "<group>"; };
 		A1000002AAAA0001000000E /* HotkeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderView.swift; sourceTree = "<group>"; };
 		A1000002AAAA0001000000F /* PermissionsWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsWindowView.swift; sourceTree = "<group>"; };
+		A1000002AAAA00010000010 /* CloudShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudShape.swift; sourceTree = "<group>"; };
+		A1000002AAAA00010000011 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,11 +90,12 @@
 			children = (
 				A1000002AAAA00010000006 /* SpotlightOverlayWindow.swift */,
 				A1000002AAAA00010000007 /* SpotlightView.swift */,
+				A1000002AAAA00010000010 /* CloudShape.swift */,
 				A1000002AAAA00010000008 /* ClickIndicatorWindow.swift */,
-				A1000002AAAA00010000009 /* KeystrokeOverlayWindow.swift */,
 				A1000002AAAA0001000000A /* PreferencesView.swift */,
 				A1000002AAAA0001000000E /* HotkeyRecorderView.swift */,
 				A1000002AAAA0001000000F /* PermissionsWindowView.swift */,
+				A1000002AAAA00010000011 /* AboutView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -206,11 +209,12 @@
 				A1000001AAAA00010000005 /* EventMonitor.swift in Sources */,
 				A1000001AAAA00010000006 /* SpotlightOverlayWindow.swift in Sources */,
 				A1000001AAAA00010000007 /* SpotlightView.swift in Sources */,
+				A1000001AAAA00010000010 /* CloudShape.swift in Sources */,
 				A1000001AAAA00010000008 /* ClickIndicatorWindow.swift in Sources */,
-				A1000001AAAA00010000009 /* KeystrokeOverlayWindow.swift in Sources */,
 				A1000001AAAA0001000000A /* PreferencesView.swift in Sources */,
 				A1000001AAAA0001000000E /* HotkeyRecorderView.swift in Sources */,
 				A1000001AAAA0001000000F /* PermissionsWindowView.swift in Sources */,
+				A1000001AAAA00010000011 /* AboutView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

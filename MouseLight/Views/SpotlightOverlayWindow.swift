@@ -264,6 +264,15 @@ class SpotlightOverlayWindow: NSObject {
         }
     }
 
+    // MARK: - Click Indicators
+
+    func showClick(at screenPosition: NSPoint) {
+        // Add click indicator to all views (it will only be visible on the correct screen)
+        for view in spotlightViews {
+            view.addClickIndicator(at: screenPosition)
+        }
+    }
+
     private func convertToScreenCoordinates(_ cgPoint: CGPoint) -> NSPoint {
         // CGEvent origin is at TOP-LEFT of PRIMARY screen, Y increases down
         // AppKit origin is at BOTTOM-LEFT of primary screen, Y increases up

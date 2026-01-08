@@ -8,11 +8,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Overlay windows
     private var spotlightWindow: SpotlightOverlayWindow?
     private var clickIndicatorWindow: ClickIndicatorWindow?
-    private var keystrokeWindow: KeystrokeOverlayWindow?
 
     // Windows
     private var permissionsWindow: NSWindow?
     private var preferencesWindow: NSWindow?
+    private var aboutWindow: NSWindow?
+    private var helperWindow: NSWindow?  // Keeps rendering context active
 
     // Event monitoring
     private var eventMonitor: EventMonitor?
@@ -22,6 +23,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set activation policy to accessory - allows overlay windows to render
+        // without showing in Dock (LSUIElement handles Dock hiding)
+        NSApp.setActivationPolicy(.accessory)
+
         // Skip onboarding if permission is already granted
         if PermissionsManager.shared.hasAccessibilityPermission {
             settings.hasCompletedOnboarding = true
@@ -93,7 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupMenu() {
         let menu = NSMenu()
 
-        let toggleItem = NSMenuItem(title: "Toggle Spotlight", action: #selector(toggleSpotlight), keyEquivalent: "")
+        let toggleItem = NSMenuItem(title: "Toggle Spotlight", action: #selector(toggleSpotlightFromMenu), keyEquivalent: "")
         menu.addItem(toggleItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -106,12 +111,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         clicksItem.state = settings.clicksEnabled ? .on : .off
         menu.addItem(clicksItem)
 
-        let keystrokesItem = NSMenuItem(title: "Keystroke Display", action: #selector(toggleKeystrokesEnabled), keyEquivalent: "")
-        keystrokesItem.state = settings.keystrokesEnabled ? .on : .off
-        menu.addItem(keystrokesItem)
-
         menu.addItem(NSMenuItem.separator())
 
+        menu.addItem(NSMenuItem(title: "About MouseLight...", action: #selector(openAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(openPreferences), keyEquivalent: ","))
 
         menu.addItem(NSMenuItem.separator())
@@ -124,14 +126,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Overlay Windows
 
     private func setupOverlayWindows() {
+        // Create a tiny off-screen helper window to keep rendering context active
+        // This fixes overlay windows not rendering for menu bar apps
+        setupHelperWindow()
+
         spotlightWindow = SpotlightOverlayWindow()
         clickIndicatorWindow = ClickIndicatorWindow()
-        keystrokeWindow = KeystrokeOverlayWindow()
 
         // Setup auto-deactivate callback
         spotlightWindow?.onAutoDeactivate = { [weak self] in
             self?.deactivateSpotlight()
         }
+    }
+
+    private func setupHelperWindow() {
+        // Create a 1x1 pixel window off-screen to maintain rendering context
+        helperWindow = NSWindow(
+            contentRect: NSRect(x: -10000, y: -10000, width: 1, height: 1),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        helperWindow?.level = .normal
+        helperWindow?.isOpaque = false
+        helperWindow?.backgroundColor = .clear
+        helperWindow?.ignoresMouseEvents = true
+        helperWindow?.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        helperWindow?.orderFrontRegardless()
     }
 
     // MARK: - Permissions & Event Monitoring
@@ -152,11 +173,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onMouseClick: { [weak self] location, clickType in
                 self?.handleClick(at: location, clickType: clickType)
             },
-            onKeyPress: { [weak self] keystroke in
-                self?.handleKeystroke(keystroke)
-            },
             onHotkey: { [weak self] in
                 self?.toggleSpotlight()
+            },
+            onEscape: { [weak self] in
+                // Escape key deactivates spotlight
+                if self?.spotlightActive == true {
+                    self?.deactivateSpotlight()
+                }
             }
         )
         eventMonitor?.start()
@@ -173,21 +197,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Keystroke Handling
+    // MARK: - Spotlight Actions
 
-    private func handleKeystroke(_ keystroke: String) {
-        guard settings.keystrokesEnabled else { return }
-
-        // Check if keystrokes should work standalone or only with spotlight
-        if settings.keystrokesStandalone || spotlightActive {
-            keystrokeWindow?.showKeystroke(keystroke)
+    /// Menu toggle - no protection window, direct toggle
+    @objc private func toggleSpotlightFromMenu() {
+        guard settings.spotlightEnabled else { return }
+        if spotlightActive {
+            deactivateSpotlight()
+        } else {
+            activateSpotlight()
         }
     }
 
-    // MARK: - Spotlight Actions
-
     @objc private func toggleSpotlight() {
         guard settings.spotlightEnabled else { return }
+
+        #if DEBUG
+        print("[MouseLight] toggleSpotlight: spotlightActive=\(spotlightActive)")
+        #endif
+
+        // Note: Debounce for Carbon double-fire is now handled at the source
+        // in EventMonitor before events are dispatched to main queue
 
         if spotlightActive {
             deactivateSpotlight()
@@ -198,12 +228,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func activateSpotlight() {
         spotlightActive = true
+
+        // Activate app to ensure overlay windows render properly
+        // (same as when Preferences window is open)
+        NSApp.activate(ignoringOtherApps: true)
+
         spotlightWindow?.show()
         updateStatusIcon(active: true)
-        startMousePolling()  // Fallback polling in case event tap isn't working
+        startMousePolling()
     }
 
     private func deactivateSpotlight() {
+        #if DEBUG
+        print("[MouseLight] deactivateSpotlight() called")
+        #endif
         spotlightActive = false
         spotlightWindow?.hide()
         updateStatusIcon(active: false)
@@ -252,31 +290,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenu()
     }
 
-    @objc private func toggleKeystrokesEnabled() {
-        settings.keystrokesEnabled.toggle()
-        setupMenu()
+    @objc private func openAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let window = aboutWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 550),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "About MouseLight"
+        window.contentView = NSHostingView(rootView: AboutView())
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        aboutWindow = window
     }
 
     @objc private func openPreferences() {
-        // If preferences window exists, just bring it to front
+        // Activate app first to ensure window comes to front
+        NSApp.activate(ignoringOtherApps: true)
+
+        // If preferences window exists and is visible, just bring it to front
         if let window = preferencesWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            window.orderFrontRegardless()
             return
         }
 
         // Create preferences window
-        preferencesWindow = NSWindow(
+        let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        preferencesWindow?.title = "MouseLight"
-        preferencesWindow?.contentView = NSHostingView(rootView: PreferencesView())
-        preferencesWindow?.center()
-        preferencesWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        window.title = "MouseLight"
+        window.contentView = NSHostingView(rootView: PreferencesView())
+        window.isReleasedWhenClosed = false  // Prevent crash from dangling pointer
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        preferencesWindow = window
     }
 
     private func updateStatusIcon(active: Bool) {

@@ -29,7 +29,6 @@ xcodebuild -scheme MouseLight -configuration Release archive -archivePath build/
 **MouseLight** is a macOS menu bar utility for presentations that provides:
 - Spotlight effect (dims screen, highlights cursor area)
 - Click indicators (colored circles on mouse clicks)
-- Keystroke display (shows keyboard input on screen)
 
 | Property | Value |
 |----------|-------|
@@ -56,17 +55,17 @@ xcodebuild -scheme MouseLight -configuration Release archive -archivePath build/
 │  - Handles hotkey toggle                                        │
 │  - Coordinates all components                                   │
 └─────────────────────────────────────────────────────────────────┘
-         │              │              │              │
-         ▼              ▼              ▼              ▼
-┌──────────────┐ ┌─────────────┐ ┌──────────┐ ┌─────────────┐
-│ EventMonitor │ │ Spotlight   │ │ Click    │ │ Keystroke   │
-│              │ │ Overlay     │ │ Indicator│ │ Overlay     │
-│ - CGEventTap │ │ Window      │ │ Window   │ │ Window      │
-│ - NSEvent    │ │ (per screen)│ │          │ │             │
-│ - Carbon     │ └─────────────┘ └──────────┘ └─────────────┘
-│   Hotkey     │        │
-└──────────────┘        ▼
-                 ┌─────────────┐
+         │              │              │
+         ▼              ▼              ▼
+┌──────────────┐ ┌─────────────┐ ┌──────────┐
+│ EventMonitor │ │ Spotlight   │ │ Click    │
+│              │ │ Overlay     │ │ Indicator│
+│ - NSEvent    │ │ Window      │ │ Window   │
+│   global     │ │ (per screen)│ │ (CVDisp- │
+│   monitors   │ └─────────────┘ │  layLink)│
+│ - Carbon     │        │        └──────────┘
+│   Hotkey     │        ▼
+└──────────────┘ ┌─────────────┐
                  │ SpotlightView│
                  │ (Core       │
                  │  Graphics)  │
@@ -81,16 +80,17 @@ All source in `MouseLight/`:
 |-----------|-----------|---------|
 | `App/` | `AppDelegate.swift` | Main controller - window management, menu bar, event coordination |
 | `App/` | `MouseLightApp.swift` | SwiftUI @main entry |
-| `App/` | `Info.plist` | LSUIElement=true (menu bar only) |
-| `Models/` | `Settings.swift` | Singleton with ~30 @AppStorage properties |
-| `Services/` | `EventMonitor.swift` | CGEventTap (mouse), NSEvent (keyboard), Carbon hotkey |
+| `App/` | `Info.plist` | App metadata |
+| `Models/` | `Settings.swift` | Singleton with @AppStorage properties |
+| `Services/` | `EventMonitor.swift` | NSEvent global monitors (mouse), Carbon hotkey |
 | `Services/` | `PermissionsManager.swift` | Accessibility permission checking |
 | `Views/` | `SpotlightOverlayWindow.swift` | Multi-monitor spotlight - one NSWindow per screen |
 | `Views/` | `SpotlightView.swift` | Core Graphics rendering - radial gradient with destinationOut blend |
-| `Views/` | `ClickIndicatorWindow.swift` | Click visualization with expanding circle animation |
-| `Views/` | `KeystrokeOverlayWindow.swift` | SwiftUI-based keystroke display |
-| `Views/` | `PreferencesView.swift` | 4-tab preferences UI |
+| `Views/` | `CloudShape.swift` | Cloud shape path for spotlight |
+| `Views/` | `ClickIndicatorWindow.swift` | Click visualization with CVDisplayLink animation |
+| `Views/` | `PreferencesView.swift` | 3-tab preferences UI (Spotlight, Clicks, General) |
 | `Views/` | `HotkeyRecorderView.swift` | Custom hotkey capture control |
+| `Views/` | `AboutView.swift` | About window with feature documentation |
 | `Views/` | `PermissionsWindowView.swift` | First-run onboarding flow |
 | `Resources/` | `Assets.xcassets` | App and menu bar icons |
 
@@ -105,13 +105,14 @@ settings.spotlightRadius = 150.0  // Auto-persists to UserDefaults
 @ObservedObject private var settings = AppSettings.shared
 ```
 
-### Coordinate Systems (Critical)
-CGEvent and AppKit use different origins:
+### Mouse Monitoring
+Uses NSEvent global monitors instead of CGEventTap for reliable background app support:
 ```swift
-// CGEvent: Top-left origin, Y increases DOWN
-// AppKit: Bottom-left origin, Y increases UP
-guard let primaryScreen = NSScreen.screens.first else { return }
-let appKitY = primaryScreen.frame.maxY - cgEventY
+// Global monitors work even when app is inactive (CGEventTap doesn't)
+NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { event in
+    let screenPoint = NSEvent.mouseLocation  // AppKit coordinates
+    handleClick(at: screenPoint)
+}
 ```
 
 ### Window Configuration
@@ -146,6 +147,17 @@ RegisterEventHotKey(keyCode, modifiers, hotkeyID, GetApplicationEventTarget(), 0
 ## Debugging
 
 - **Accessibility**: `print("AXIsProcessTrusted:", AXIsProcessTrusted())`
-- **Event tap fails**: Returns nil without Accessibility permission
 - **Multi-monitor**: `NSScreen.screens[0]` is primary
 - **Hotkey issues**: Requires running app, check for conflicts
+- **Click indicators**: Use NSEvent global monitors (works when app inactive)
+
+## Distribution
+
+```bash
+# Create DMG for distribution
+mkdir -p build/dmg_staging
+cp -R ~/Library/Developer/Xcode/DerivedData/MouseLight-*/Build/Products/Release/MouseLight.app build/dmg_staging/
+ln -s /Applications build/dmg_staging/Applications
+hdiutil create -volname "MouseLight" -srcfolder build/dmg_staging -ov -format UDZO build/MouseLight.dmg
+rm -rf build/dmg_staging
+```
